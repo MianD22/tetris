@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>8-Player Tetris</title>
+        <link rel="stylesheet" href="style.css" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap"
+            rel="stylesheet"
+        />
+    </head>
+
+    <body>
+        <div class="game-container">
+            <div class="sidebar left-sidebar">
+                <div class="score-container">
+                    <h2>Lines</h2>
+                    <p id="score">0</p>
+                </div>
+                <div class="controls-info">
+                    <h3>
+                        Controls
+                        <button
+                            id="rebind-btn"
+                            style="
+                                padding: 2px 8px;
+                                font-size: 0.7rem;
+                                border-radius: 4px;
+                                margin-left: 10px;
+                            "
+                        >
+                            Rebind
+                        </button>
+                    </h3>
+                    <ul id="controls-list">
+                        <li>
+                            <span class="key" id="key-left">KeyA</span> Move L
+                        </li>
+                        <li>
+                            <span class="key" id="key-right">KeyD</span> Move R
+                        </li>
+                        <li>
+                            <span class="key" id="key-rotate">Space</span>
+                            Rotate
+                        </li>
+                        <li>
+                            <span class="key" id="key-drop">KeyS</span> Drop
+                        </li>
+                    </ul>
+                    <div
+                        id="rebind-modal"
+                        class="hidden"
+                        style="
+                            margin-top: 10px;
+                            border-top: 1px solid var(--border-color);
+                            padding-top: 10px;
+                        "
+                    >
+                        <p
+                            id="rebind-inst"
+                            style="
+                                font-size: 0.8rem;
+                                color: var(--text-secondary);
+                                margin-bottom: 8px;
+                            "
+                        >
+                            Click action to rebind:
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 5px">
+                            <button
+                                class="rebind-action-btn"
+                                data-action="left"
+                                style="padding: 4px; font-size: 0.7rem"
+                            >
+                                Left
+                            </button>
+                            <button
+                                class="rebind-action-btn"
+                                data-action="right"
+                                style="padding: 4px; font-size: 0.7rem"
+                            >
+                                Right
+                            </button>
+                            <button
+                                class="rebind-action-btn"
+                                data-action="rotate"
+                                style="padding: 4px; font-size: 0.7rem"
+                            >
+                                Rot
+                            </button>
+                            <button
+                                class="rebind-action-btn"
+                                data-action="drop"
+                                style="padding: 4px; font-size: 0.7rem"
+                            >
+                                Drop
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="board-container">
+                <canvas id="tetris" width="300" height="600"></canvas>
+
+                <div id="connection-screen" class="overlay">
+                    <h2 id="connection-status">Connecting to server...</h2>
+                </div>
+
+                <div id="lobby-screen" class="overlay hidden">
+                    <h2>Game Lobby</h2>
+                    <div
+                        class="lobby-options"
+                        style="
+                            margin-bottom: 20px;
+                            display: flex;
+                            align-items: center;
+                            gap: 10px;
+                        "
+                    >
+                        <label for="speed-select" style="font-size: 1.1rem"
+                            >Starting Lines:</label
+                        >
+                        <select
+                            id="speed-select"
+                            style="
+                                padding: 5px 10px;
+                                border-radius: 5px;
+                                background: rgba(0, 0, 0, 0.5);
+                                color: white;
+                                border: 1px solid var(--border-color);
+                            "
+                        >
+                            <option value="0">0</option>
+                            <option value="10">10</option>
+                            <option value="20">20</option>
+                            <option value="30">30</option>
+                            <option value="40">40</option>
+                            <option value="50">50</option>
+                            <option value="60">60</option>
+                            <option value="70">70</option>
+                            <option value="80">80</option>
+                            <option value="90">90</option>
+                        </select>
+                    </div>
+                    <div class="mode-picker" aria-label="Game mode">
+                        <button
+                            type="button"
+                            id="co-op-mode-btn"
+                            class="mode-btn co-op selected"
+                        >
+                            Co-op
+                        </button>
+                        <button
+                            type="button"
+                            id="battle-mode-btn"
+                            class="mode-btn battle"
+                        >
+                            Battle
+                        </button>
+                    </div>
+                    <p id="lobby-status">Pick your color</p>
+                    <div class="color-picker" id="color-picker">
+                        <!-- Color buttons generated by JS -->
+                    </div>
+                    <button id="ready-btn" disabled>Ready up!</button>
+                </div>
+
+                <div id="game-over-screen" class="overlay hidden">
+                    <h2
+                        style="
+                            color: #ef4444;
+                            font-size: 3rem;
+                            margin-bottom: 10px;
+                            text-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+                        "
+                    >
+                        GAME OVER
+                    </h2>
+                    <p>The pieces reached the top!</p>
+                    <button id="return-lobby-btn" style="margin-top: 20px">
+                        Return to Lobby
+                    </button>
+                </div>
+            </div>
+
+            <div class="sidebar right-sidebar">
+                <div class="next-piece-container">
+                    <h2>Next</h2>
+                    <canvas id="next-piece" width="120" height="120"></canvas>
+                </div>
+                <div id="players-list-container">
+                    <h3>Players</h3>
+                    <ul id="players-list"></ul>
+                </div>
+            </div>
+        </div>
+
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="main.js"></script>
+    </body>
+</html>
