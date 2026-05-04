@@ -465,7 +465,7 @@ function drawNext() {
   }
 }
 
-function collide(board, playerObj) {
+function collide(board, playerObj, includePlayers = true) {
   const m = playerObj.matrix;
   const o = playerObj.pos;
   if (!m || !board || !board.length) return false;
@@ -486,22 +486,24 @@ function collide(board, playerObj) {
           return true;
         }
 
-        for (let id in remotePlayers) {
-          if (id === playerObj.id) continue;
-          const rp = remotePlayers[id];
-          if (!rp.matrix || rp.isSpectator || rp.isDead) continue;
+        if (includePlayers) {
+          for (let id in remotePlayers) {
+            if (id === playerObj.id) continue;
+            const rp = remotePlayers[id];
+            if (!rp.matrix || rp.isSpectator || rp.isDead) continue;
 
-          const rpLocalX = globalX - rp.pos.x;
-          const rpLocalY = globalY - rp.pos.y;
+            const rpLocalX = globalX - rp.pos.x;
+            const rpLocalY = globalY - rp.pos.y;
 
-          if (
-            rpLocalY >= 0 &&
-            rpLocalY < rp.matrix.length &&
-            rpLocalX >= 0 &&
-            rpLocalX < rp.matrix[rpLocalY].length
-          ) {
-            if (rp.matrix[rpLocalY][rpLocalX] !== 0) {
-              return true;
+            if (
+              rpLocalY >= 0 &&
+              rpLocalY < rp.matrix.length &&
+              rpLocalX >= 0 &&
+              rpLocalX < rp.matrix[rpLocalY].length
+            ) {
+              if (rp.matrix[rpLocalY][rpLocalX] !== 0) {
+                return true;
+              }
             }
           }
         }
@@ -627,7 +629,7 @@ function unlockAudio() {
 function playerDrop() {
   if (!isPlaying) return;
   player.pos.y++;
-  if (collide(board, player)) {
+  if (collide(board, player, true)) {
     player.pos.y--;
     // Delay locking to the update loop
   } else {
@@ -639,7 +641,7 @@ function playerDrop() {
 function playerMove(offset) {
   if (!isPlaying) return;
   player.pos.x += offset;
-  if (collide(board, player)) {
+  if (collide(board, player, true)) {
     player.pos.x -= offset;
   } else {
     playMoveSound();
@@ -663,7 +665,7 @@ function playerRotate(dir) {
   const pos = player.pos.x;
   let offset = 1;
   rotate(player.matrix, dir);
-  while (collide(board, player)) {
+  while (collide(board, player, true)) {
     player.pos.x += offset;
     offset = -(offset + (offset > 0 ? 1 : -1));
     if (offset > player.matrix[0].length) {
@@ -687,7 +689,7 @@ function playerReset() {
 
   lockDuration = 0;
 
-  if (collide(board, player)) {
+  if (collide(board, player, true)) {
     socket.emit("player_dead");
     isPlaying = false;
     player.matrix = null;
@@ -741,7 +743,8 @@ function update(time = 0) {
     handleInputs(deltaTime);
 
     player.pos.y++;
-    const grounded = collide(board, player);
+    // Grounded ONLY if hitting the board or walls (ignore players for locking)
+    const grounded = collide(board, player, false);
     player.pos.y--;
 
     if (grounded) {
@@ -757,6 +760,7 @@ function update(time = 0) {
       dropInterval = getDropInterval();
 
       if (dropCounter > dropInterval) {
+        // playerDrop uses collide(..., true) so it will still be blocked by players
         playerDrop();
       }
     }
