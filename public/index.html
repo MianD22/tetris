@@ -12,6 +12,29 @@
     </head>
 
     <body>
+        <div class="audio-controls" aria-label="Audio controls">
+            <label class="volume-control" for="sfx-volume">
+                <span>SFX</span>
+                <input
+                    id="sfx-volume"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="70"
+                />
+            </label>
+            <label class="volume-control" for="music-volume">
+                <span>Music</span>
+                <input
+                    id="music-volume"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="35"
+                />
+            </label>
+        </div>
+
         <div class="game-container">
             <div class="sidebar left-sidebar">
                 <div class="score-container">
@@ -19,85 +42,100 @@
                     <p id="score">0</p>
                 </div>
                 <div class="controls-info">
-                    <h3>
-                        Controls
-                        <button
-                            id="rebind-btn"
-                            style="
-                                padding: 2px 8px;
-                                font-size: 0.7rem;
-                                border-radius: 4px;
-                                margin-left: 10px;
-                            "
-                        >
-                            Rebind
-                        </button>
-                    </h3>
-                    <ul id="controls-list">
-                        <li>
-                            <span class="key" id="key-left">KeyA</span> Move L
-                        </li>
-                        <li>
-                            <span class="key" id="key-right">KeyD</span> Move R
-                        </li>
-                        <li>
-                            <span class="key" id="key-rotate">Space</span>
-                            Rotate
-                        </li>
-                        <li>
-                            <span class="key" id="key-drop">KeyS</span> Drop
-                        </li>
-                    </ul>
-                    <div
-                        id="rebind-modal"
-                        class="hidden"
+                    <h3>Controls</h3>
+                    <p
+                        id="rebind-inst"
                         style="
-                            margin-top: 10px;
-                            border-top: 1px solid var(--border-color);
-                            padding-top: 10px;
+                            font-size: 0.8rem;
+                            color: var(--text-secondary);
+                            margin-bottom: 8px;
+                            display: none;
                         "
                     >
-                        <p
-                            id="rebind-inst"
-                            style="
-                                font-size: 0.8rem;
-                                color: var(--text-secondary);
-                                margin-bottom: 8px;
-                            "
-                        >
-                            Click action to rebind:
-                        </p>
-                        <div style="display: flex; flex-wrap: wrap; gap: 5px">
+                        Press any key to rebind...
+                    </p>
+                    <ul id="controls-list">
+                        <li>
                             <button
                                 class="rebind-action-btn"
                                 data-action="left"
-                                style="padding: 4px; font-size: 0.7rem"
+                                style="
+                                    background: none;
+                                    border: none;
+                                    padding: 0;
+                                    cursor: pointer;
+                                    color: inherit;
+                                    font-family: inherit;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                "
                             >
-                                Left
+                                <span class="key" id="key-left">KeyA</span>
+                                <span>Move L</span>
                             </button>
+                        </li>
+                        <li>
                             <button
                                 class="rebind-action-btn"
                                 data-action="right"
-                                style="padding: 4px; font-size: 0.7rem"
+                                style="
+                                    background: none;
+                                    border: none;
+                                    padding: 0;
+                                    cursor: pointer;
+                                    color: inherit;
+                                    font-family: inherit;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                "
                             >
-                                Right
+                                <span class="key" id="key-right">KeyD</span>
+                                <span>Move R</span>
                             </button>
+                        </li>
+                        <li>
                             <button
                                 class="rebind-action-btn"
                                 data-action="rotate"
-                                style="padding: 4px; font-size: 0.7rem"
+                                style="
+                                    background: none;
+                                    border: none;
+                                    padding: 0;
+                                    cursor: pointer;
+                                    color: inherit;
+                                    font-family: inherit;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                "
                             >
-                                Rot
+                                <span class="key" id="key-rotate">Space</span>
+                                <span>Rotate</span>
                             </button>
+                        </li>
+                        <li>
                             <button
                                 class="rebind-action-btn"
                                 data-action="drop"
-                                style="padding: 4px; font-size: 0.7rem"
+                                style="
+                                    background: none;
+                                    border: none;
+                                    padding: 0;
+                                    cursor: pointer;
+                                    color: inherit;
+                                    font-family: inherit;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                "
                             >
-                                Drop
+                                <span class="key" id="key-drop">KeyS</span>
+                                <span>Drop</span>
                             </button>
-                        </div>
-                    </div>
+                        </li>
+                    </ul>
                 </div>
             </div>
 
@@ -120,7 +158,7 @@
                         "
                     >
                         <label for="speed-select" style="font-size: 1.1rem"
-                            >Starting Lines:</label
+                            >Starting Speed:</label
                         >
                         <select
                             id="speed-select"

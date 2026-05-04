@@ -1,9 +1,31 @@
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
 const app = express();
 const http = require("http").createServer(app);
 const io = require("socket.io")(http);
 
 app.use(express.static("public"));
+app.use("/assets", express.static("assets"));
+
+const MUSIC_DIR = path.join(__dirname, "assets", "music");
+
+app.get("/assets/music-list", (req, res) => {
+  fs.readdir(MUSIC_DIR, { withFileTypes: true }, (err, entries) => {
+    if (err) {
+      res.json([]);
+      return;
+    }
+
+    res.json(
+      entries
+        .filter(
+          (entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".mp3"),
+        )
+        .map((entry) => `/assets/music/${encodeURIComponent(entry.name)}`),
+    );
+  });
+});
 
 let gameState = "LOBBY"; // 'LOBBY' or 'PLAYING'
 let isBattleMode = false;
@@ -52,7 +74,7 @@ function checkStartCondition() {
 
 function startGame() {
   gameState = "PLAYING";
-  globalLines = startingLines;
+  globalLines = 0;
 
   const activePlayers = Object.values(players).filter((p) => !p.isSpectator);
   const numPlayers = activePlayers.length;
@@ -97,6 +119,7 @@ function startGame() {
     players: players,
     cols: COLS,
     lines: globalLines,
+    startingLines: startingLines,
     walls: walls,
     isBattleMode: isBattleMode,
   });
