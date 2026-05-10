@@ -309,19 +309,25 @@ io.on("connection", (socket) => {
     globalLines += linesCleared;
 
     // Battle Mode Logic
-    if (isBattleMode && linesCleared >= 3) {
-      const activePlayers = Object.values(players).filter(
-        (p) => !p.isSpectator && !p.isDead,
-      );
+    if (isBattleMode && linesCleared >= 2) {
+      const activePlayers = Object.values(players).filter(p => !p.isSpectator && !p.isDead);
       if (activePlayers.length === 2) {
         const attacker = players[socket.id];
-        const victim = activePlayers.find((p) => p.id !== socket.id);
+        const victim = activePlayers.find(p => p.id !== socket.id);
         if (victim) {
-          const victimToppedOut = addBattleGarbage(victim);
+          let garbageRows = linesCleared; // 2 -> 2, 3 -> 3? But you want 2 lines → 1 row, 3 lines → 2 rows
+          // Actually your request: 2 lines → 1 garbage, 3 lines → 2 garbage
+          // So map:
+          if (linesCleared === 2) garbageRows = 1;
+          else if (linesCleared >= 3) garbageRows = 2; // for any 3+ clears, you said 3→2 garbage rows.
 
-          if (victimToppedOut) {
-            victim.isDead = true;
-            finishGame(attacker.id);
+          for (let i = 0; i < garbageRows; i++) {
+            const topped = addBattleGarbage(victim);
+            if (topped) {
+              victim.isDead = true;
+              finishGame(attacker.id);
+              break;
+            }
           }
         }
       }
@@ -406,7 +412,8 @@ function addBattleGarbage(player) {
   const lane = getBattleLane(player);
   let toppedOut = false;
 
-  for (let y = 0; y <= 1; y++) {
+  // Check if the top two rows are occupied – if so, player tops out
+  for (let y = 0; y < 1; y++) { // only check the very top row for a single-row insertion
     for (let x = lane.start; x < lane.end; x++) {
       if (board[y][x] !== 0) {
         toppedOut = true;
@@ -416,15 +423,17 @@ function addBattleGarbage(player) {
     if (toppedOut) break;
   }
 
+  // Shift everything up by one row within the lane
   for (let y = 0; y < ROWS - 1; y++) {
     for (let x = lane.start; x < lane.end; x++) {
       board[y][x] = board[y + 1][x];
     }
   }
 
+  // Fill bottom row with garbage, leaving one random gap
   const gapX = lane.start + Math.floor(Math.random() * (lane.end - lane.start));
   for (let x = lane.start; x < lane.end; x++) {
-    board[ROWS - 1][x] = x === gapX ? 0 : GARBAGE_COLOR_INDEX;
+    board[ROWS - 1][x] = (x === gapX) ? 0 : GARBAGE_COLOR_INDEX;
   }
 
   return toppedOut;
