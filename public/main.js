@@ -82,6 +82,8 @@ let gameState = "LOBBY";
 let isJoined = false;
 let isPlaying = false;
 let isBattleMode = false;
+let isRandomMode = false;
+let randomSpeed = 160;
 
 const userControls = {
   left: "KeyA",
@@ -127,6 +129,7 @@ const coOpModeBtn = document.getElementById("co-op-mode-btn");
 const battleModeBtn = document.getElementById("battle-mode-btn");
 const sfxVolumeSlider = document.getElementById("sfx-volume");
 const musicVolumeSlider = document.getElementById("music-volume");
+const randomModeCheckbox = document.getElementById("random-mode-checkbox");
 
 returnLobbyBtn.addEventListener("click", () => {
   gameOverScreen.classList.add("hidden");
@@ -147,6 +150,10 @@ document.querySelectorAll(".rebind-action-btn").forEach((btn) => {
 
 speedSelect.addEventListener("change", (e) => {
   socket.emit("change_speed", parseInt(e.target.value));
+});
+
+randomModeCheckbox.addEventListener("change", (e) => {
+  socket.emit("toggle_random_mode", e.target.checked);
 });
 
 coOpModeBtn.addEventListener("click", () => {
@@ -193,6 +200,9 @@ socket.on("initial_sync", (data) => {
   globalLines = data.lines;
   walls = data.walls || [];
   isBattleMode = !!data.isBattleMode;
+  isRandomMode = !!data.isRandomMode;
+  randomSpeed = data.randomSpeed !== undefined ? data.randomSpeed : null;
+  randomModeCheckbox.checked = isRandomMode;
   updateModeButtons();
   if (data.startingLines !== undefined) {
     startingLines = data.startingLines;
@@ -233,6 +243,9 @@ socket.on("lobby_state_update", (data) => {
   }
   globalLines = data.lines;
   isBattleMode = !!data.isBattleMode;
+  isRandomMode = !!data.isRandomMode;
+  randomSpeed = data.randomSpeed !== undefined ? data.randomSpeed : null;
+  randomModeCheckbox.checked = isRandomMode;
   updateModeButtons();
   if (data.startingLines !== undefined) {
     startingLines = data.startingLines;
@@ -309,6 +322,8 @@ socket.on("game_start", (data) => {
   globalLines = data.lines;
   walls = data.walls || [];
   isBattleMode = !!data.isBattleMode;
+  isRandomMode = !!data.isRandomMode;
+  randomSpeed = data.randomSpeed !== undefined ? data.randomSpeed : null;
   if (data.startingLines !== undefined) {
     startingLines = data.startingLines;
   }
@@ -340,6 +355,10 @@ socket.on("board_update", (data) => {
   walls = data.walls || walls;
   isBattleMode =
     data.isBattleMode !== undefined ? !!data.isBattleMode : isBattleMode;
+  isRandomMode =
+    data.isRandomMode !== undefined ? !!data.isRandomMode : isRandomMode;
+  randomSpeed =
+    data.randomSpeed !== undefined ? data.randomSpeed : randomSpeed;
   scoreElement.innerText = globalLines;
 });
 
@@ -727,6 +746,9 @@ function handleInputs(deltaTime) {
 }
 
 function getDropInterval() {
+  if (isRandomMode && randomSpeed !== null) {
+    return randomSpeed;
+  }
   const speedLines = Math.max(globalLines, startingLines);
   const level = Math.min(SPEED_CURVE.length - 1, Math.floor(speedLines / 10));
   return SPEED_CURVE[level];

@@ -34,6 +34,10 @@ const GARBAGE_COLOR_INDEX = 9;
 let COLS = 10;
 let board = [];
 let globalLines = 0;
+let isRandomMode = false;
+let randomSpeed = null; // null means use curve
+let nextBurstLines = 0;
+let burstEndLines = 0;
 
 let players = {};
 const MAX_PLAYERS = 8;
@@ -55,6 +59,8 @@ function broadcastLobbyState() {
     lines: globalLines,
     startingLines: startingLines,
     isBattleMode: isBattleMode,
+    isRandomMode: isRandomMode,
+    randomSpeed: randomSpeed,
   });
 }
 
@@ -75,6 +81,11 @@ function checkStartCondition() {
 function startGame() {
   gameState = "PLAYING";
   globalLines = 0;
+  if (isRandomMode) {
+    randomSpeed = null;
+    nextBurstLines = 5 + Math.floor(Math.random() * 10); // First burst between 5-15 lines
+    burstEndLines = 0;
+  }
 
   const activePlayers = Object.values(players).filter((p) => !p.isSpectator);
   const numPlayers = activePlayers.length;
@@ -122,6 +133,8 @@ function startGame() {
     startingLines: startingLines,
     walls: walls,
     isBattleMode: isBattleMode,
+    isRandomMode: isRandomMode,
+    randomSpeed: randomSpeed,
   });
 }
 
@@ -137,11 +150,19 @@ io.on("connection", (socket) => {
     startingLines: startingLines,
     walls: walls,
     isBattleMode: isBattleMode,
+    isRandomMode: isRandomMode,
+    randomSpeed: randomSpeed,
   });
 
   socket.on("change_speed", (lines) => {
     if (gameState !== "LOBBY") return;
     startingLines = typeof lines === "number" && !isNaN(lines) ? lines : 0;
+    broadcastLobbyState();
+  });
+
+  socket.on("toggle_random_mode", (enabled) => {
+    if (gameState !== "LOBBY") return;
+    isRandomMode = !!enabled;
     broadcastLobbyState();
   });
 
@@ -306,7 +327,24 @@ io.on("connection", (socket) => {
       }
     }
 
+    const oldLines = globalLines;
     globalLines += linesCleared;
+
+    if (isRandomMode && linesCleared > 0) {
+      if (randomSpeed === 25) {
+        if (globalLines >= burstEndLines) {
+          randomSpeed = null; // Back to curve
+          // Schedule next burst in 10-20 lines
+          nextBurstLines = globalLines + 10 + Math.floor(Math.random() * 10);
+        }
+      } else {
+        if (globalLines >= nextBurstLines) {
+          randomSpeed = 25;
+          const burstDuration = 3 + Math.floor(Math.random() * 4); // 3-6 lines
+          burstEndLines = globalLines + burstDuration;
+        }
+      }
+    }
 
     // Battle Mode Logic
     if (isBattleMode && linesCleared >= 2) {
@@ -338,6 +376,8 @@ io.on("connection", (socket) => {
       lines: globalLines,
       walls,
       isBattleMode,
+      isRandomMode,
+      randomSpeed,
     });
     if (gameState === "PLAYING") socket.emit("piece_locked_ack");
 
