@@ -20,7 +20,8 @@ app.get("/assets/music-list", (req, res) => {
     res.json(
       entries
         .filter(
-          (entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".mp3"),
+          (entry) =>
+            entry.isFile() && entry.name.toLowerCase().endsWith(".mp3"),
         )
         .map((entry) => `/assets/music/${encodeURIComponent(entry.name)}`),
     );
@@ -348,10 +349,12 @@ io.on("connection", (socket) => {
 
     // Battle Mode Logic
     if (isBattleMode && linesCleared >= 2) {
-      const activePlayers = Object.values(players).filter(p => !p.isSpectator && !p.isDead);
+      const activePlayers = Object.values(players).filter(
+        (p) => !p.isSpectator && !p.isDead,
+      );
       if (activePlayers.length === 2) {
         const attacker = players[socket.id];
-        const victim = activePlayers.find(p => p.id !== socket.id);
+        const victim = activePlayers.find((p) => p.id !== socket.id);
         if (victim) {
           let garbageRows = linesCleared; // 2 -> 2, 3 -> 3? But you want 2 lines → 1 row, 3 lines → 2 rows
           // Actually your request: 2 lines → 1 garbage, 3 lines → 2 garbage
@@ -429,7 +432,9 @@ io.on("connection", (socket) => {
           (isBattleMode && activePlayers.length < 2)
         ) {
           const winner =
-            isBattleMode && activePlayers.length === 1 ? activePlayers[0].id : null;
+            isBattleMode && activePlayers.length === 1
+              ? activePlayers[0].id
+              : null;
           finishGame(winner);
         } else {
           io.emit("players_update", players);
@@ -453,7 +458,8 @@ function addBattleGarbage(player) {
   let toppedOut = false;
 
   // Check if the top two rows are occupied – if so, player tops out
-  for (let y = 0; y < 1; y++) { // only check the very top row for a single-row insertion
+  for (let y = 0; y < 1; y++) {
+    // only check the very top row for a single-row insertion
     for (let x = lane.start; x < lane.end; x++) {
       if (board[y][x] !== 0) {
         toppedOut = true;
@@ -473,7 +479,7 @@ function addBattleGarbage(player) {
   // Fill bottom row with garbage, leaving one random gap
   const gapX = lane.start + Math.floor(Math.random() * (lane.end - lane.start));
   for (let x = lane.start; x < lane.end; x++) {
-    board[ROWS - 1][x] = (x === gapX) ? 0 : GARBAGE_COLOR_INDEX;
+    board[ROWS - 1][x] = x === gapX ? 0 : GARBAGE_COLOR_INDEX;
   }
 
   return toppedOut;

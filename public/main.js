@@ -1,4 +1,5 @@
 const socket = io();
+let socket2 = null;
 
 const canvas = document.getElementById("tetris");
 const ctx = canvas.getContext("2d");
@@ -57,6 +58,23 @@ const player = {
   matrix: null,
   next: null,
   isSpectator: false,
+  dropCounter: 0,
+  lockCounter: 0,
+  lockDuration: 0,
+};
+
+const player2 = {
+  id: null,
+  colorIndex: null,
+  spawnX: 0,
+  pos: { x: 0, y: 0 },
+  matrix: null,
+  next: null,
+  isSpectator: false,
+  active: false,
+  dropCounter: 0,
+  lockCounter: 0,
+  lockDuration: 0,
 };
 
 const lockSound = new Audio("/assets/land.mp3");
@@ -86,24 +104,37 @@ let isRandomMode = false;
 let randomSpeed = 160;
 
 const userControls = {
-  left: "KeyA",
-  right: "KeyD",
-  drop: "KeyS",
-  rotate: "Space",
+  p1: {
+    left: "KeyA",
+    right: "KeyD",
+    drop: "KeyS",
+    rotate: "Space",
+  },
+  p2: {
+    left: "ArrowLeft",
+    right: "ArrowRight",
+    drop: "ArrowDown",
+    rotate: "ArrowUp",
+  },
 };
 let activeRebindKey = null;
+let activeRebindPlayer = null;
 
 const inputState = {
-  left: { active: false, timer: 0 },
-  right: { active: false, timer: 0 },
-  drop: { active: false, timer: 0 },
+  p1: {
+    left: { active: false, timer: 0 },
+    right: { active: false, timer: 0 },
+    drop: { active: false, timer: 0 },
+  },
+  p2: {
+    left: { active: false, timer: 0 },
+    right: { active: false, timer: 0 },
+    drop: { active: false, timer: 0 },
+  },
 };
 const DAS = 120;
 const ARR = 40;
-let dropCounter = 0;
 let dropInterval = 1000;
-let lockCounter = 0;
-let lockDuration = 0;
 const LOCK_DELAY = 300;
 const MAX_LOCK_DELAY = 2000;
 const MAX_FRAME_DELTA = 50;
@@ -130,6 +161,81 @@ const battleModeBtn = document.getElementById("battle-mode-btn");
 const sfxVolumeSlider = document.getElementById("sfx-volume");
 const musicVolumeSlider = document.getElementById("music-volume");
 const randomModeCheckbox = document.getElementById("random-mode-checkbox");
+const splitscreenCheckbox = document.getElementById("splitscreen-checkbox");
+const p2ControlsContainer = document.getElementById("p2-controls-container");
+const p1ControlsHeader = document.getElementById("p1-controls-header");
+
+splitscreenCheckbox.addEventListener("change", (e) => {
+  const enabled = e.target.checked;
+  player2.active = enabled;
+  p2ControlsContainer.style.display = enabled ? "block" : "none";
+  p1ControlsHeader.innerText = enabled ? "P1 Controls" : "Controls";
+
+  if (enabled) {
+    if (!socket2) {
+      initSocket2();
+    } else {
+      socket2.emit("join_lobby");
+    }
+  } else {
+    if (socket2) {
+      socket2.disconnect();
+      socket2 = null;
+      player2.id = null;
+    }
+  }
+});
+
+function initSocket2() {
+  socket2 = io();
+
+  socket2.on("initial_sync", (data) => {
+    if (!player2.id) {
+      socket2.emit("join_lobby");
+    }
+  });
+
+  socket2.on("joined_successfully", (selfData) => {
+    player2.id = selfData.id;
+    player2.isSpectator = selfData.isSpectator;
+  });
+
+  socket2.on("lobby_state_update", (data) => {
+    if (data.players[player2.id]) {
+      player2.isSpectator = data.players[player2.id].isSpectator;
+    }
+    // Most UI updates are handled by the main socket
+  });
+
+  socket2.on("game_start", (data) => {
+    if (player2.active && !player2.isSpectator) {
+      const myData = data.players[player2.id];
+      if (myData) {
+        player2.colorIndex = myData.colorIndex;
+        player2.spawnX = myData.spawnX;
+        playerReset(player2, socket2);
+        player2.dropCounter = 0;
+        player2.lockCounter = 0;
+        player2.lockDuration = 0;
+      }
+    }
+  });
+
+  socket2.on("piece_locked_ack", () => {
+    playLockSound();
+    playerReset(player2, socket2);
+  });
+
+  socket2.on("try_revive", () => {
+    if (player2.active && !player2.isSpectator) {
+      playerReset(player2, socket2);
+    }
+  });
+
+  socket2.on("game_over_state", () => {
+    player2.matrix = null;
+  });
+}
 
 returnLobbyBtn.addEventListener("click", () => {
   gameOverScreen.classList.add("hidden");
@@ -142,9 +248,10 @@ returnLobbyBtn.addEventListener("click", () => {
 document.querySelectorAll(".rebind-action-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     activeRebindKey = btn.dataset.action;
+    activeRebindPlayer = btn.dataset.player;
     document.getElementById("rebind-inst").style.display = "block";
     document.getElementById("rebind-inst").innerText =
-      `Press any key to map '${activeRebindKey.toUpperCase()}'...`;
+      `Press any key to map P${activeRebindPlayer} '${activeRebindKey.toUpperCase()}'...`;
   });
 });
 
@@ -184,7 +291,21 @@ for (let i = 1; i <= PLAYER_COLOR_COUNT; i++) {
   btn.style.backgroundColor = COLORS[i];
   btn.dataset.index = i;
   btn.onclick = () => {
-    socket.emit("select_color", i);
+    const myData = remotePlayers[player.id];
+    const myData2 =
+      player2.active && player2.id ? remotePlayers[player2.id] : null;
+
+    if (
+      player2.active &&
+      myData &&
+      myData.colorIndex !== null &&
+      ((myData2 && myData2.colorIndex === null) || myData.colorIndex === i)
+    ) {
+      // If P1 has a color and P2 doesn't, or P1 is clicking their own color (to change it?), give to P2
+      socket2.emit("select_color", i);
+    } else {
+      socket.emit("select_color", i);
+    }
   };
   colorPicker.appendChild(btn);
 }
@@ -222,6 +343,12 @@ readyBtn.addEventListener("click", () => {
   if (p) {
     socket.emit("toggle_ready", !p.isReady);
   }
+  if (player2.active && player2.id) {
+    const p2 = remotePlayers[player2.id];
+    if (p2) {
+      socket2.emit("toggle_ready", !p2.isReady);
+    }
+  }
 });
 
 socket.on("joined_successfully", (selfData) => {
@@ -240,6 +367,9 @@ socket.on("lobby_state_update", (data) => {
   remotePlayers = data.players;
   if (remotePlayers[player.id]) {
     player.isSpectator = remotePlayers[player.id].isSpectator;
+  }
+  if (player2.id && remotePlayers[player2.id]) {
+    player2.isSpectator = remotePlayers[player2.id].isSpectator;
   }
   globalLines = data.lines;
   isBattleMode = !!data.isBattleMode;
@@ -260,7 +390,10 @@ socket.on("lobby_state_update", (data) => {
     const li = document.createElement("li");
 
     let cDot = `<span class="player-color-dot" style="background: ${p.colorIndex ? COLORS[p.colorIndex] : "#444"}"></span>`;
-    let text = p.id === player.id ? "You" : "Player";
+    let text = "Player";
+    if (p.id === player.id) text = "You (P1)";
+    else if (player2.active && p.id === player2.id) text = "You (P2)";
+
     if (p.isSpectator) text += " (Spectating)";
     else if (p.isReady) text += " [READY]";
 
@@ -268,29 +401,47 @@ socket.on("lobby_state_update", (data) => {
     playersListUI.appendChild(li);
   }
 
-  if (gameState === "LOBBY" && player.isSpectator) {
+  if (
+    gameState === "LOBBY" &&
+    player.isSpectator &&
+    (!player2.active || player2.isSpectator)
+  ) {
     lobbyScreen.classList.add("hidden");
   }
 
-  if (gameState === "LOBBY" && !player.isSpectator && player.id) {
+  if (
+    gameState === "LOBBY" &&
+    (!player.isSpectator || (player2.active && !player2.isSpectator)) &&
+    player.id
+  ) {
     lobbyScreen.classList.remove("hidden");
 
     const myData = remotePlayers[player.id];
+    const myData2 =
+      player2.active && player2.id ? remotePlayers[player2.id] : null;
 
     // Update color picker
     const btns = colorPicker.querySelectorAll(".color-btn");
     btns.forEach((btn) => {
       const idx = parseInt(btn.dataset.index);
-      // Check if another player has this color
+      // Check if another player (not us) has this color
       const taken = Object.values(remotePlayers).find(
-        (rp) => rp.colorIndex === idx && rp.id !== player.id,
+        (rp) =>
+          rp.colorIndex === idx &&
+          rp.id !== player.id &&
+          (!player2.active || rp.id !== player2.id),
       );
       btn.disabled = !!taken;
 
       if (myData && myData.colorIndex === idx) {
         btn.classList.add("selected");
+        btn.style.border = "3px solid white";
+      } else if (myData2 && myData2.colorIndex === idx) {
+        btn.classList.add("selected");
+        btn.style.border = "3px solid #ec4899"; // Accent color for P2
       } else {
         btn.classList.remove("selected");
+        btn.style.border = "";
       }
     });
 
@@ -300,13 +451,20 @@ socket.on("lobby_state_update", (data) => {
     if (isBattleMode && activePlayerCount !== 2) {
       lobbyStatus.innerText = "Battle mode needs exactly 2 players";
     } else {
-      lobbyStatus.innerText = "Pick your color";
+      lobbyStatus.innerText = player2.active
+        ? "Pick colors for both"
+        : "Pick your color";
     }
 
-    if (myData && myData.colorIndex !== null) {
+    const p1CanReady = myData && myData.colorIndex !== null;
+    const p2CanReady =
+      !player2.active || (myData2 && myData2.colorIndex !== null);
+
+    if (p1CanReady && p2CanReady) {
       readyBtn.disabled = false;
-      readyBtn.innerText = myData.isReady ? "Cancel Ready" : "Ready up!";
-      readyBtn.style.background = myData.isReady ? "#10b981" : "";
+      const bothReady = myData.isReady && (!myData2 || myData2.isReady);
+      readyBtn.innerText = bothReady ? "Cancel Ready" : "Ready up!";
+      readyBtn.style.background = bothReady ? "#10b981" : "";
     } else {
       readyBtn.disabled = true;
     }
@@ -337,9 +495,9 @@ socket.on("game_start", (data) => {
       player.spawnX = myData.spawnX;
       isPlaying = true;
       playerReset();
-      dropCounter = 0;
-      lockCounter = 0;
-      lockDuration = 0;
+      player.dropCounter = 0;
+      player.lockCounter = 0;
+      player.lockDuration = 0;
       if (animationFrameId !== null) {
         cancelAnimationFrame(animationFrameId);
       }
@@ -357,8 +515,7 @@ socket.on("board_update", (data) => {
     data.isBattleMode !== undefined ? !!data.isBattleMode : isBattleMode;
   isRandomMode =
     data.isRandomMode !== undefined ? !!data.isRandomMode : isRandomMode;
-  randomSpeed =
-    data.randomSpeed !== undefined ? data.randomSpeed : randomSpeed;
+  randomSpeed = data.randomSpeed !== undefined ? data.randomSpeed : randomSpeed;
   scoreElement.innerText = globalLines;
 });
 
@@ -416,10 +573,10 @@ function updateBoard(newBoard) {
   }
 }
 
-function createPiece() {
+function createPiece(colorIndex) {
   const type = Math.floor(Math.random() * 3) + 1;
   return BaseShapes[type].map((row) =>
-    row.map((cell) => (cell ? player.colorIndex : 0)),
+    row.map((cell) => (cell ? colorIndex : 0)),
   );
 }
 
@@ -465,7 +622,7 @@ function draw() {
   });
 
   for (let id in remotePlayers) {
-    if (id === player.id) continue;
+    if (id === player.id || id === player2.id) continue;
     const p = remotePlayers[id];
     if (p.matrix) {
       drawMatrix(p.matrix, p.pos);
@@ -475,6 +632,9 @@ function draw() {
   if (player.matrix) {
     drawMatrix(player.matrix, player.pos);
   }
+  if (player2.active && player2.matrix) {
+    drawMatrix(player2.matrix, player2.pos);
+  }
 }
 
 function drawNext() {
@@ -482,6 +642,8 @@ function drawNext() {
   if (player.next) {
     drawMatrix(player.next, { x: 0.5, y: 0.5 }, nextCtx);
   }
+  // Optional: show player2 next piece too? User didn't ask but might be nice.
+  // For now I'll stick to what's there.
 }
 
 function collide(board, playerObj, includePlayers = true) {
@@ -532,18 +694,18 @@ function collide(board, playerObj, includePlayers = true) {
   return false;
 }
 
-function emitUpdate() {
-  socket.emit("update_piece", {
-    matrix: player.matrix,
-    pos: player.pos,
+function emitUpdate(p = player, s = socket) {
+  s.emit("update_piece", {
+    matrix: p.matrix,
+    pos: p.pos,
   });
 }
 
-function lockPiece() {
-  isPlaying = false; // block inputs till ack
-  socket.emit("lock_piece", {
-    matrix: player.matrix,
-    pos: player.pos,
+function lockPiece(p = player, s = socket) {
+  if (p === player) isPlaying = false; // block inputs till ack
+  s.emit("lock_piece", {
+    matrix: p.matrix,
+    pos: p.pos,
   });
 }
 
@@ -645,27 +807,27 @@ function unlockAudio() {
   }
 }
 
-function playerDrop() {
-  if (!isPlaying) return;
-  player.pos.y++;
-  if (collide(board, player, true)) {
-    player.pos.y--;
+function playerDrop(p = player, s = socket) {
+  if (p === player && !isPlaying) return;
+  p.pos.y++;
+  if (collide(board, p, true)) {
+    p.pos.y--;
     // Delay locking to the update loop
   } else {
-    emitUpdate();
-    dropCounter = 0;
+    emitUpdate(p, s);
+    p.dropCounter = 0;
   }
 }
 
-function playerMove(offset) {
-  if (!isPlaying) return;
-  player.pos.x += offset;
-  if (collide(board, player, true)) {
-    player.pos.x -= offset;
+function playerMove(offset, p = player, s = socket) {
+  if (p === player && !isPlaying) return;
+  p.pos.x += offset;
+  if (collide(board, p, true)) {
+    p.pos.x -= offset;
   } else {
     playMoveSound();
-    emitUpdate();
-    lockCounter = 0;
+    emitUpdate(p, s);
+    p.lockCounter = 0;
   }
 }
 
@@ -679,68 +841,94 @@ function rotate(matrix, dir) {
   else matrix.reverse();
 }
 
-function playerRotate(dir) {
-  if (!isPlaying) return;
-  const pos = player.pos.x;
+function playerRotate(dir, p = player, s = socket) {
+  if (p === player && !isPlaying) return;
+  const pos = p.pos.x;
   let offset = 1;
-  rotate(player.matrix, dir);
-  while (collide(board, player, true)) {
-    player.pos.x += offset;
+  rotate(p.matrix, dir);
+  while (collide(board, p, true)) {
+    p.pos.x += offset;
     offset = -(offset + (offset > 0 ? 1 : -1));
-    if (offset > player.matrix[0].length) {
-      rotate(player.matrix, -dir);
-      player.pos.x = pos;
+    if (offset > p.matrix[0].length) {
+      rotate(p.matrix, -dir);
+      p.pos.x = pos;
       return;
     }
   }
-  emitUpdate();
-  lockCounter = 0;
+  emitUpdate(p, s);
+  p.lockCounter = 0;
 }
 
-function playerReset() {
-  if (!player.next) player.next = createPiece();
-  player.matrix = player.next;
-  player.next = createPiece();
+function playerReset(p = player, s = socket) {
+  if (!p.next) p.next = createPiece(p.colorIndex);
+  p.matrix = p.next;
+  p.next = createPiece(p.colorIndex);
 
-  player.pos.y = 0;
+  p.pos.y = 0;
   // Dynamic spawn point assignment based on Server's designated spawnX
-  player.pos.x = player.spawnX;
+  p.pos.x = p.spawnX;
 
-  lockDuration = 0;
+  p.lockDuration = 0;
 
-  if (collide(board, player, true)) {
-    socket.emit("player_dead");
-    isPlaying = false;
-    player.matrix = null;
-    emitUpdate();
+  if (collide(board, p, true)) {
+    s.emit("player_dead");
+    if (p === player) isPlaying = false;
+    p.matrix = null;
+    emitUpdate(p, s);
     return;
   }
 
-  isPlaying = true;
-  emitUpdate();
-  drawNext();
+  if (p === player) isPlaying = true;
+  emitUpdate(p, s);
+  if (p === player) drawNext();
 }
 
 function handleInputs(deltaTime) {
-  if (inputState.left.active) {
-    inputState.left.timer += deltaTime;
-    if (inputState.left.timer > ARR) {
-      playerMove(-1);
-      inputState.left.timer = 0;
+  // P1
+  if (inputState.p1.left.active) {
+    inputState.p1.left.timer += deltaTime;
+    if (inputState.p1.left.timer > ARR) {
+      playerMove(-1, player, socket);
+      inputState.p1.left.timer = 0;
     }
   }
-  if (inputState.right.active) {
-    inputState.right.timer += deltaTime;
-    if (inputState.right.timer > ARR) {
-      playerMove(1);
-      inputState.right.timer = 0;
+  if (inputState.p1.right.active) {
+    inputState.p1.right.timer += deltaTime;
+    if (inputState.p1.right.timer > ARR) {
+      playerMove(1, player, socket);
+      inputState.p1.right.timer = 0;
     }
   }
-  if (inputState.drop.active) {
-    inputState.drop.timer += deltaTime;
-    if (inputState.drop.timer > ARR) {
-      playerDrop();
-      inputState.drop.timer = 0;
+  if (inputState.p1.drop.active) {
+    inputState.p1.drop.timer += deltaTime;
+    if (inputState.p1.drop.timer > ARR) {
+      playerDrop(player, socket);
+      inputState.p1.drop.timer = 0;
+    }
+  }
+
+  // P2
+  if (player2.active && player2.id) {
+    if (inputState.p2.left.active) {
+      inputState.p2.left.timer += deltaTime;
+      if (inputState.p2.left.timer > ARR) {
+        playerMove(-1, player2, socket2);
+        inputState.p2.left.timer = 0;
+      }
+    }
+    if (inputState.p2.right.active) {
+      inputState.p2.right.timer += deltaTime;
+      if (inputState.p2.right.timer > ARR) {
+        playerMove(1, player2, socket2);
+        inputState.p2.right.timer = 0;
+      }
+    }
+    if (inputState.p2.drop.active) {
+      inputState.p2.drop.timer += deltaTime;
+      if (inputState.p2.drop.timer > ARR) {
+        playerDrop(player2, socket2);
+        inputState.p2.drop.timer = 0;
+      }
     }
   }
 }
@@ -761,32 +949,40 @@ function update(time = 0) {
   const deltaTime = Math.min(time - lastTime, MAX_FRAME_DELTA);
   lastTime = time;
 
-  if (isPlaying) {
-    handleInputs(deltaTime);
+  handleInputs(deltaTime);
+  dropInterval = getDropInterval();
 
-    player.pos.y++;
-    // Grounded ONLY if hitting the board or walls (ignore players for locking)
-    const grounded = collide(board, player, false);
-    player.pos.y--;
+  const playersToUpdate = [
+    { p: player, s: socket, active: isPlaying },
+    {
+      p: player2,
+      s: socket2,
+      active: player2.active && player2.id && gameState === "PLAYING",
+    },
+  ];
+
+  playersToUpdate.forEach(({ p, s, active }) => {
+    if (!active || !p.matrix) return;
+
+    p.pos.y++;
+    const grounded = collide(board, p, false);
+    p.pos.y--;
 
     if (grounded) {
-      lockCounter += deltaTime;
-      lockDuration += deltaTime;
-      if (lockCounter > LOCK_DELAY || lockDuration > MAX_LOCK_DELAY) {
-        lockPiece();
+      p.lockCounter += deltaTime;
+      p.lockDuration += deltaTime;
+      if (p.lockCounter > LOCK_DELAY || p.lockDuration > MAX_LOCK_DELAY) {
+        lockPiece(p, s);
       }
     } else {
-      lockCounter = 0;
-      dropCounter += deltaTime;
+      p.lockCounter = 0;
+      p.dropCounter += deltaTime;
 
-      dropInterval = getDropInterval();
-
-      if (dropCounter > dropInterval) {
-        // playerDrop uses collide(..., true) so it will still be blocked by players
-        playerDrop();
+      if (p.dropCounter > dropInterval) {
+        playerDrop(p, s);
       }
     }
-  }
+  });
 
   draw();
   animationFrameId = requestAnimationFrame(update);
@@ -799,62 +995,98 @@ document.addEventListener("keydown", (event) => {
   // If waiting for a keybind
   if (activeRebindKey) {
     event.preventDefault();
-    userControls[activeRebindKey] = event.code;
-    document.getElementById("key-" + activeRebindKey).innerText = event.code;
+    const playerKey = activeRebindPlayer === "1" ? "p1" : "p2";
+    userControls[playerKey][activeRebindKey] = event.code;
+    document.getElementById(
+      `key-p${activeRebindPlayer}-${activeRebindKey}`,
+    ).innerText = event.code;
     document.getElementById("rebind-inst").innerText =
       `Saved [${event.code}]. Click another to rebind:`;
     activeRebindKey = null;
+    activeRebindPlayer = null;
     setTimeout(() => {
       document.getElementById("rebind-inst").style.display = "none";
     }, 1500);
     return;
   }
 
-  if (!isPlaying) return;
-  switch (event.code) {
-    case userControls.left:
-      if (!inputState.left.active) {
-        playerMove(-1);
-        inputState.left.active = true;
-        inputState.left.timer = -DAS;
-      }
-      break;
-    case userControls.right:
-      if (!inputState.right.active) {
-        playerMove(1);
-        inputState.right.active = true;
-        inputState.right.timer = -DAS;
-      }
-      break;
-    case userControls.drop:
-      if (!inputState.drop.active) {
-        playerDrop();
-        inputState.drop.active = true;
-        inputState.drop.timer = -DAS;
-      }
-      break;
-    case userControls.rotate:
-      event.preventDefault(); // Prevents spacebar scrolling
-      playerRotate(1);
-      break;
-    case "Space":
-      event.preventDefault();
-      break;
+  // P1 controls
+  if (isPlaying) {
+    switch (event.code) {
+      case userControls.p1.left:
+        if (!inputState.p1.left.active) {
+          playerMove(-1, player, socket);
+          inputState.p1.left.active = true;
+          inputState.p1.left.timer = -DAS;
+        }
+        break;
+      case userControls.p1.right:
+        if (!inputState.p1.right.active) {
+          playerMove(1, player, socket);
+          inputState.p1.right.active = true;
+          inputState.p1.right.timer = -DAS;
+        }
+        break;
+      case userControls.p1.drop:
+        if (!inputState.p1.drop.active) {
+          playerDrop(player, socket);
+          inputState.p1.drop.active = true;
+          inputState.p1.drop.timer = -DAS;
+        }
+        break;
+      case userControls.p1.rotate:
+        event.preventDefault(); // Prevents spacebar scrolling
+        playerRotate(1, player, socket);
+        break;
+    }
+  }
+
+  // P2 controls
+  if (player2.active && player2.id && gameState === "PLAYING") {
+    switch (event.code) {
+      case userControls.p2.left:
+        if (!inputState.p2.left.active) {
+          playerMove(-1, player2, socket2);
+          inputState.p2.left.active = true;
+          inputState.p2.left.timer = -DAS;
+        }
+        break;
+      case userControls.p2.right:
+        if (!inputState.p2.right.active) {
+          playerMove(1, player2, socket2);
+          inputState.p2.right.active = true;
+          inputState.p2.right.timer = -DAS;
+        }
+        break;
+      case userControls.p2.drop:
+        if (!inputState.p2.drop.active) {
+          playerDrop(player2, socket2);
+          inputState.p2.drop.active = true;
+          inputState.p2.drop.timer = -DAS;
+        }
+        break;
+      case userControls.p2.rotate:
+        event.preventDefault();
+        playerRotate(1, player2, socket2);
+        break;
+    }
+  }
+
+  if (event.code === "Space") {
+    event.preventDefault();
   }
 });
 
 document.addEventListener("keyup", (event) => {
-  switch (event.code) {
-    case userControls.left:
-      inputState.left.active = false;
-      break;
-    case userControls.right:
-      inputState.right.active = false;
-      break;
-    case userControls.drop:
-      inputState.drop.active = false;
-      break;
-  }
+  // P1
+  if (event.code === userControls.p1.left) inputState.p1.left.active = false;
+  if (event.code === userControls.p1.right) inputState.p1.right.active = false;
+  if (event.code === userControls.p1.drop) inputState.p1.drop.active = false;
+
+  // P2
+  if (event.code === userControls.p2.left) inputState.p2.left.active = false;
+  if (event.code === userControls.p2.right) inputState.p2.right.active = false;
+  if (event.code === userControls.p2.drop) inputState.p2.drop.active = false;
 });
 
 // Initially render something if spectator

@@ -42,7 +42,7 @@
                     <p id="score">0</p>
                 </div>
                 <div class="controls-info">
-                    <h3>Controls</h3>
+                    <h3 id="p1-controls-header">P1 Controls</h3>
                     <p
                         id="rebind-inst"
                         style="
@@ -54,10 +54,11 @@
                     >
                         Press any key to rebind...
                     </p>
-                    <ul id="controls-list">
+                    <ul id="controls-list-p1">
                         <li>
                             <button
                                 class="rebind-action-btn"
+                                data-player="1"
                                 data-action="left"
                                 style="
                                     background: none;
@@ -71,13 +72,14 @@
                                     gap: 8px;
                                 "
                             >
-                                <span class="key" id="key-left">KeyA</span>
+                                <span class="key" id="key-p1-left">KeyA</span>
                                 <span>Move L</span>
                             </button>
                         </li>
                         <li>
                             <button
                                 class="rebind-action-btn"
+                                data-player="1"
                                 data-action="right"
                                 style="
                                     background: none;
@@ -91,13 +93,14 @@
                                     gap: 8px;
                                 "
                             >
-                                <span class="key" id="key-right">KeyD</span>
+                                <span class="key" id="key-p1-right">KeyD</span>
                                 <span>Move R</span>
                             </button>
                         </li>
                         <li>
                             <button
                                 class="rebind-action-btn"
+                                data-player="1"
                                 data-action="rotate"
                                 style="
                                     background: none;
@@ -111,13 +114,16 @@
                                     gap: 8px;
                                 "
                             >
-                                <span class="key" id="key-rotate">Space</span>
+                                <span class="key" id="key-p1-rotate"
+                                    >Space</span
+                                >
                                 <span>Rotate</span>
                             </button>
                         </li>
                         <li>
                             <button
                                 class="rebind-action-btn"
+                                data-player="1"
                                 data-action="drop"
                                 style="
                                     background: none;
@@ -131,11 +137,117 @@
                                     gap: 8px;
                                 "
                             >
-                                <span class="key" id="key-drop">KeyS</span>
+                                <span class="key" id="key-p1-drop">KeyS</span>
                                 <span>Drop</span>
                             </button>
                         </li>
                     </ul>
+
+                    <div
+                        id="p2-controls-container"
+                        style="
+                            display: none;
+                            margin-top: 15px;
+                            border-top: 1px solid var(--border-color);
+                            padding-top: 15px;
+                        "
+                    >
+                        <h3>P2 Controls</h3>
+                        <ul id="controls-list-p2">
+                            <li>
+                                <button
+                                    class="rebind-action-btn"
+                                    data-player="2"
+                                    data-action="left"
+                                    style="
+                                        background: none;
+                                        border: none;
+                                        padding: 0;
+                                        cursor: pointer;
+                                        color: inherit;
+                                        font-family: inherit;
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 8px;
+                                    "
+                                >
+                                    <span class="key" id="key-p2-left"
+                                        >ArrowLeft</span
+                                    >
+                                    <span>Move L</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button
+                                    class="rebind-action-btn"
+                                    data-player="2"
+                                    data-action="right"
+                                    style="
+                                        background: none;
+                                        border: none;
+                                        padding: 0;
+                                        cursor: pointer;
+                                        color: inherit;
+                                        font-family: inherit;
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 8px;
+                                    "
+                                >
+                                    <span class="key" id="key-p2-right"
+                                        >ArrowRight</span
+                                    >
+                                    <span>Move R</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button
+                                    class="rebind-action-btn"
+                                    data-player="2"
+                                    data-action="rotate"
+                                    style="
+                                        background: none;
+                                        border: none;
+                                        padding: 0;
+                                        cursor: pointer;
+                                        color: inherit;
+                                        font-family: inherit;
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 8px;
+                                    "
+                                >
+                                    <span class="key" id="key-p2-rotate"
+                                        >ArrowUp</span
+                                    >
+                                    <span>Rotate</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button
+                                    class="rebind-action-btn"
+                                    data-player="2"
+                                    data-action="drop"
+                                    style="
+                                        background: none;
+                                        border: none;
+                                        padding: 0;
+                                        cursor: pointer;
+                                        color: inherit;
+                                        font-family: inherit;
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 8px;
+                                    "
+                                >
+                                    <span class="key" id="key-p2-drop"
+                                        >ArrowDown</span
+                                    >
+                                    <span>Drop</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
 
@@ -202,6 +314,28 @@
                                 "
                             />
                             <span style="font-size: 1.1rem">Random</span>
+                        </label>
+
+                        <label
+                            class="checkbox-container"
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                cursor: pointer;
+                                margin-left: 10px;
+                            "
+                        >
+                            <input
+                                type="checkbox"
+                                id="splitscreen-checkbox"
+                                style="
+                                    width: 18px;
+                                    height: 18px;
+                                    cursor: pointer;
+                                "
+                            />
+                            <span style="font-size: 1.1rem">Splitscreen</span>
                         </label>
                     </div>
                     <div class="mode-picker" aria-label="Game mode">
